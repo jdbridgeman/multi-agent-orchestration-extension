@@ -1,0 +1,50 @@
+{
+  "name": "multi-agent-orchestration-extension",
+  "version": "1.0.0",
+  "description": "Orchestration system for multiple AI coding assistants to work together without conflicts",
+  "main": "state-aggregator.cjs",
+  "scripts": {
+    "start": "node state-aggregator.cjs",
+    "agent:start": "node state-aggregator.cjs",
+    "agent:stop": "pkill -f state-aggregator.cjs || true",
+    "agent:reset": "rm -rf agent-states && mkdir -p agent-states",
+    "agent:status": "cat agent-states/unified-view.json | jq .",
+    "claude:check": "node agent-scripts/claude-update.cjs check",
+    "copilot:check": "node agent-scripts/copilot-update.cjs check", 
+    "cursor:check": "node agent-scripts/cursor-update.cjs check",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "ai",
+    "copilot",
+    "cursor",
+    "claude",
+    "orchestration",
+    "multi-agent",
+    "collaboration",
+    "vscode",
+    "development-tools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/multi-agent-orchestration-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/multi-agent-orchestration-extension/issues"
+  },
+  "homepage": "https://github.com/yourusername/multi-agent-orchestration-extension#readme",
+  "files": [
+    "agent-scripts/",
+    "agent-states/",
+    "state-aggregator.cjs",
+    "docs/",
+    "examples/",
+    "README.md",
+    "LICENSE"
+  ]
+}
