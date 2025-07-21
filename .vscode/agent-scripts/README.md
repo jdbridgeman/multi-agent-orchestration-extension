@@ -308,6 +308,3 @@ See individual script files for detailed function documentation:
 - `update-unified-view.cjs` - State aggregation
 
 ---
-
-*Last updated: 2025-01-16*
-*System version: Enhanced Multi-Agent v2.0*
