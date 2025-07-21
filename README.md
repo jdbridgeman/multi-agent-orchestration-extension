@@ -314,8 +314,7 @@ MIT
 
 - 🐛 [Issues](https://github.com/jdbridgeman/multi-agent-orchestration-extension/issues)
 - 💬 [Discussions](https://github.com/jdbridgeman/multi-agent-orchestration-extension/discussions)
-- 📚 [Wiki](https://github.com/jdbridgeman/multi-agent-orchestration-extension/wiki)
 
 ---
 
-*For the full technical documentation and architecture details, see the [Wiki](https://github.com/jdbridgeman/multi-agent-orchestration-extension/wiki).*
+
