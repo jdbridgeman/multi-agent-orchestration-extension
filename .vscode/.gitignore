@@ -1,0 +1,27 @@
+# Multi-Agent System State Files
+# These contain real-time agent coordination data and should not be in version control
+agent-states/
+
+# Local IDE settings that may contain personal preferences
+settings.local.json
+*.local.json
+
+# Temporary files and logs
+*.log
+*.tmp
+*.temp
+.DS_Store
+
+# Personal workspace files
+*.code-workspace.local
+
+# Agent system runtime files
+.agent-lock
+.agent-pid
+
+# Local configuration files
+agent-config.json
+
+# But explicitly include template/example files
+!settings.json.example
+!agent-config.example.json

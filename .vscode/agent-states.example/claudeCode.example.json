@@ -1,0 +1,16 @@
+{
+  "agent": "claudeCode",
+  "status": "idle",
+  "currentWork": null,
+  "lastCompleted": {
+    "files": ["example-file.ts"],
+    "task": "Example task description",
+    "duration": 10,
+    "completed": "2025-01-01T00:00:00.000Z"
+  },
+  "lastHeartbeat": "2025-01-01T00:00:00.000Z",
+  "metadata": {
+    "version": "1.0.0",
+    "capabilities": ["architecture", "refactoring", "ml-systems"]
+  }
+}

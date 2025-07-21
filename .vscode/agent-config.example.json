@@ -1,0 +1,38 @@
+{
+  "// Note": "This is an example configuration for the multi-agent system",
+  "// Instructions": "Copy this file to agent-config.json and customize for your setup",
+  
+  "agents": {
+    "claudeCode": {
+      "name": "Claude Code",
+      "priority": 1,
+      "specialties": ["architecture", "complex-refactoring", "system-design"],
+      "updateScript": "./agent-scripts/claude-update.cjs"
+    },
+    "copilot": {
+      "name": "GitHub Copilot",
+      "priority": 2,
+      "specialties": ["config-files", "boilerplate", "documentation"],
+      "updateScript": "./agent-scripts/copilot-update.cjs"
+    },
+    "cursor": {
+      "name": "Cursor",
+      "priority": 3,
+      "specialties": ["ui-components", "tests", "styling"],
+      "updateScript": "./agent-scripts/cursor-update.cjs"
+    }
+  },
+  
+  "coordination": {
+    "heartbeatInterval": 600000,
+    "staleThreshold": 1200000,
+    "autoRelease": true,
+    "conflictResolution": "priority-based"
+  },
+  
+  "stateManagement": {
+    "stateDirectory": "./agent-states",
+    "unifiedViewFile": "unified-view.json",
+    "updateInterval": 1000
+  }
+}

@@ -63,30 +63,62 @@ class AgentUpdater {
     return null;
   }
 
-  start(files, task) {
-    // Check unified view for conflicts
+  start(files, task, options = {}) {
+    // Check if unified view is stale
     const unified = this.readUnifiedView();
-    if (unified?.fileOwnership) {
+    if (unified) {
+      const unifiedAge = Date.now() - new Date(unified.lastUpdated).getTime();
+      if (unifiedAge > 60000) { // 1 minute stale threshold for unified view
+        console.warn(`⚠️  Unified view is ${Math.round(unifiedAge/1000)}s old. Running update...`);
+        // Trigger unified view update
+        require('./update-unified-view.cjs').updateUnifiedView();
+      }
+    }
+
+    // Check unified view for conflicts after potential update
+    const freshUnified = this.readUnifiedView();
+    if (freshUnified?.fileOwnership) {
       const conflicts = [];
       files.forEach(file => {
-        if (unified.fileOwnership[file] && unified.fileOwnership[file].agent !== AGENT_NAME) {
-          conflicts.push({
-            file: file,
-            owner: unified.fileOwnership[file]
-          });
+        if (freshUnified.fileOwnership[file] && freshUnified.fileOwnership[file].agent !== AGENT_NAME) {
+          const owner = freshUnified.fileOwnership[file];
+          
+          // Check if owning agent is stale
+          const ownerState = freshUnified.agents[owner.agent];
+          const ownerAge = ownerState ? Date.now() - new Date(ownerState.lastHeartbeat).getTime() : Infinity;
+          
+          if (ownerAge > 30000) { // 30 second stale threshold
+            console.log(`🕐 Owner ${owner.agent} appears stale (${Math.round(ownerAge/1000)}s), auto-claiming file: ${file}`);
+            // Continue - we can claim stale files
+          } else {
+            conflicts.push({
+              file: file,
+              owner: owner,
+              ownerState: ownerState
+            });
+          }
         }
       });
       
       if (conflicts.length > 0) {
-        console.error('\n⚠️  CONFLICT DETECTED!\n');
-        conflicts.forEach(c => {
-          const duration = Math.round((Date.now() - new Date(c.owner.since).getTime()) / 1000 / 60);
-          console.error(`   📁 ${c.file}`);
-          console.error(`   👤 Claimed by: ${c.owner.agent}`);
-          console.error(`   📝 Their task: ${c.owner.task}`);
-          console.error(`   ⏱️  Duration: ${duration} minutes\n`);
-        });
-        return false;
+        if (options.force) {
+          console.log('\n🚀 FORCE MODE: Overriding conflicts...\n');
+          conflicts.forEach(c => {
+            console.log(`   ⚡ Taking ${c.file} from ${c.owner.agent}`);
+          });
+        } else {
+          console.error('\n⚠️  CONFLICT DETECTED!\n');
+          conflicts.forEach(c => {
+            const duration = Math.round((Date.now() - new Date(c.owner.since).getTime()) / 1000 / 60);
+            const lastSeen = Math.round((Date.now() - new Date(c.ownerState.lastHeartbeat).getTime()) / 1000);
+            console.error(`   📁 ${c.file}`);
+            console.error(`   👤 Claimed by: ${c.owner.agent} (last seen ${lastSeen}s ago)`);
+            console.error(`   📝 Their task: ${c.owner.task}`);
+            console.error(`   ⏱️  Duration: ${duration} minutes`);
+          });
+          console.error('\n💡 Use --force to override conflicts or wait for them to complete.\n');
+          return false;
+        }
       }
     }
 
@@ -137,10 +169,99 @@ class AgentUpdater {
     if (this.writeState(state)) {
       console.log(`\n✅ Work Completed!\n`);
       console.log(`📝 Task: ${current.currentWork.task}`);
-      console.log(`⏱️  Duration: ${duration} minutes\n`);
+      console.log(`⏱️  Duration: ${duration} minutes`);
+      
+      // Create handoff notification for other agents
+      this.createHandoffNotification(current.currentWork.files, 'completed');
+      
       return true;
     }
     return false;
+  }
+
+  release(reason = 'manual') {
+    const current = this.readState();
+    if (!current || current.status !== 'active') {
+      console.error('❌ No active work to release');
+      return false;
+    }
+
+    const duration = Math.round((Date.now() - new Date(current.currentWork.started).getTime()) / 1000 / 60);
+
+    const state = {
+      agent: AGENT_NAME,
+      status: 'idle',
+      currentWork: null,
+      lastReleased: {
+        files: current.currentWork.files,
+        task: current.currentWork.task,
+        reason: reason,
+        duration: duration,
+        released: new Date().toISOString()
+      },
+      lastHeartbeat: new Date().toISOString()
+    };
+
+    if (this.writeState(state)) {
+      console.log(`\n🔓 Files Released!\n`);
+      console.log(`📝 Task: ${current.currentWork.task}`);
+      console.log(`📁 Files: ${current.currentWork.files.join(', ')}`);
+      console.log(`❓ Reason: ${reason}`);
+      console.log(`⏱️  Duration: ${duration} minutes`);
+      
+      // Create handoff notification for other agents
+      this.createHandoffNotification(current.currentWork.files, reason);
+      
+      return true;
+    }
+    return false;
+  }
+
+  createHandoffNotification(files, reason) {
+    try {
+      const handoffFile = path.join(path.dirname(MY_STATE_FILE), 'handoffs.json');
+      let handoffs = [];
+      
+      if (fs.existsSync(handoffFile)) {
+        handoffs = JSON.parse(fs.readFileSync(handoffFile, 'utf8'));
+      }
+
+      // Add new handoff notification
+      handoffs.push({
+        from: AGENT_NAME,
+        files: files,
+        reason: reason,
+        timestamp: new Date().toISOString()
+      });
+
+      // Keep only last 10 handoffs
+      handoffs = handoffs.slice(-10);
+
+      fs.writeFileSync(handoffFile, JSON.stringify(handoffs, null, 2));
+      console.log(`📢 Handoff notification created for other agents`);
+      
+      // Suggest best agent for these files
+      if (reason !== 'completed') {
+        this.suggestNextAgent(files);
+      }
+      
+    } catch (error) {
+      console.warn('Could not create handoff notification:', error.message);
+    }
+  }
+
+  suggestNextAgent(files) {
+    try {
+      const { SmartAssignment } = require('./smart-assignment.cjs');
+      const assigner = new SmartAssignment();
+      const recommendations = assigner.recommendAgent(files, 'File handoff');
+      
+      if (recommendations.length > 0) {
+        console.log(`💡 Suggested next agent: ${recommendations[0].agent}`);
+      }
+    } catch (error) {
+      // Smart assignment not available, skip
+    }
   }
 
   check() {
@@ -153,8 +274,13 @@ class AgentUpdater {
     console.log('📊 My Status:');
     if (myState?.status === 'active') {
       const duration = Math.round((Date.now() - new Date(myState.currentWork.started).getTime()) / 1000 / 60);
-      console.log(`   🟢 ACTIVE (${duration} min)`);
+      const progress = myState.currentWork?.progress;
+      const progressText = progress ? ` [${progress.percentage}%]` : '';
+      console.log(`   🟢 ACTIVE (${duration} min)${progressText}`);
       console.log(`   📝 ${myState.currentWork.task}`);
+      if (progress?.message) {
+        console.log(`   💬 ${progress.message}`);
+      }
       console.log(`   📁 ${myState.currentWork.files.join(', ')}`);
     } else {
       console.log(`   ⚪ IDLE`);
@@ -193,11 +319,34 @@ class AgentUpdater {
     console.log('\n' + '='.repeat(50) + '\n');
   }
 
+  progress(percentage, message = null) {
+    const state = this.readState();
+    if (!state || state.status !== 'active') {
+      console.error('❌ Cannot update progress - no active work');
+      return false;
+    }
+
+    state.currentWork.progress = {
+      percentage: Math.min(100, Math.max(0, percentage)),
+      message: message,
+      updated: new Date().toISOString()
+    };
+
+    if (this.writeState(state)) {
+      const msg = message ? `: ${message}` : '';
+      console.log(`📊 Progress: ${percentage}%${msg}`);
+      return true;
+    }
+    return false;
+  }
+
   heartbeat() {
     const state = this.readState();
     if (state && state.status === 'active') {
       this.writeState(state);
-      console.log(`💓 Heartbeat sent for ${AGENT_NAME}`);
+      const progressInfo = state.currentWork?.progress ? 
+        ` (${state.currentWork.progress.percentage}%)` : '';
+      console.log(`💓 Heartbeat sent for ${AGENT_NAME}${progressInfo}`);
     } else {
       console.log(`💤 ${AGENT_NAME} is idle, no heartbeat needed`);
     }
@@ -212,16 +361,18 @@ switch (command) {
   case 'start': {
     const filesArg = process.argv.indexOf('--files');
     const taskArg = process.argv.indexOf('--task');
+    const forceFlag = process.argv.includes('--force');
     
     if (filesArg === -1 || taskArg === -1) {
-      console.error('Usage: node claude-update.js start --files "file1.ts,file2.ts" --task "description"');
+      console.error('Usage: node claude-update.js start --files "file1.ts,file2.ts" --task "description" [--force]');
       process.exit(1);
     }
     
     const files = process.argv[filesArg + 1].split(',').map(f => f.trim());
     const task = process.argv[taskArg + 1];
+    const options = { force: forceFlag };
     
-    if (!updater.start(files, task)) {
+    if (!updater.start(files, task, options)) {
       process.exit(1);
     }
     break;
@@ -231,6 +382,16 @@ switch (command) {
     updater.complete();
     break;
     
+  case 'release': {
+    const reasonArg = process.argv.indexOf('--reason');
+    const reason = reasonArg !== -1 ? process.argv[reasonArg + 1] : 'manual';
+    
+    if (!updater.release(reason)) {
+      process.exit(1);
+    }
+    break;
+  }
+    
   case 'check':
     updater.check();
     break;
@@ -239,6 +400,24 @@ switch (command) {
     updater.heartbeat();
     break;
     
+  case 'progress': {
+    const percentageArg = process.argv.indexOf('--percentage');
+    const messageArg = process.argv.indexOf('--message');
+    
+    if (percentageArg === -1) {
+      console.error('Usage: node claude-update.js progress --percentage 50 [--message "description"]');
+      process.exit(1);
+    }
+    
+    const percentage = parseInt(process.argv[percentageArg + 1]);
+    const message = messageArg !== -1 ? process.argv[messageArg + 1] : null;
+    
+    if (!updater.progress(percentage, message)) {
+      process.exit(1);
+    }
+    break;
+  }
+    
   default:
     console.log(`
 ${AGENT_NAME} State Manager
@@ -246,11 +425,15 @@ ${AGENT_NAME} State Manager
 Commands:
   start     - Claim files to work on
   complete  - Mark current work as complete  
+  release   - Release files without completing (for handoffs)
+  progress  - Update work progress percentage
   check     - View system status
   heartbeat - Send keepalive signal
 
 Examples:
-  node ${path.basename(process.argv[1])} start --files "audio-engine.ts" --task "Fix memory leak"
+  node ${path.basename(process.argv[1])} start --files "audio-engine.ts" --task "Fix memory leak" [--force]
+  node ${path.basename(process.argv[1])} progress --percentage 50 --message "Fixed first bug"
+  node ${path.basename(process.argv[1])} release --reason "switching to different task"
   node ${path.basename(process.argv[1])} complete
   node ${path.basename(process.argv[1])} check
 `);

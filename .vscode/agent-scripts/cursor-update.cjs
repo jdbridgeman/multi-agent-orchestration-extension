@@ -19,7 +19,7 @@ class AgentUpdater {
     if (!fs.existsSync(STATES_DIR)) {
       fs.mkdirSync(STATES_DIR, { recursive: true });
     }
-    
+
     if (!fs.existsSync(MY_STATE_FILE)) {
       this.writeState({
         agent: AGENT_NAME,
@@ -42,7 +42,7 @@ class AgentUpdater {
   writeState(state) {
     state.agent = AGENT_NAME;
     state.lastHeartbeat = new Date().toISOString();
-    
+
     try {
       fs.writeFileSync(MY_STATE_FILE, JSON.stringify(state, null, 2));
       return true;
@@ -63,7 +63,19 @@ class AgentUpdater {
     return null;
   }
 
+  updateUnifiedView() {
+    try {
+      const { updateUnifiedView } = require('./update-unified-view.cjs');
+      updateUnifiedView();
+    } catch (error) {
+      console.warn('Could not update unified view:', error.message);
+    }
+  }
+
   start(files, task) {
+    // Update unified view first to get latest state
+    this.updateUnifiedView();
+
     // Check unified view for conflicts
     const unified = this.readUnifiedView();
     if (unified?.fileOwnership) {
@@ -76,7 +88,7 @@ class AgentUpdater {
           });
         }
       });
-      
+
       if (conflicts.length > 0) {
         console.error('\n⚠️  CONFLICT DETECTED!\n');
         conflicts.forEach(c => {
@@ -103,6 +115,9 @@ class AgentUpdater {
     };
 
     if (this.writeState(state)) {
+      // Update unified view after state change
+      this.updateUnifiedView();
+
       console.log(`\n✅ ${AGENT_NAME} Successfully Claimed Files\n`);
       console.log(`📁 Files: ${files.join(', ')}`);
       console.log(`📝 Task: ${task}`);
@@ -135,6 +150,9 @@ class AgentUpdater {
     };
 
     if (this.writeState(state)) {
+      // Update unified view after state change
+      this.updateUnifiedView();
+
       console.log(`\n✅ Work Completed!\n`);
       console.log(`📝 Task: ${current.currentWork.task}`);
       console.log(`⏱️  Duration: ${duration} minutes\n`);
@@ -212,33 +230,33 @@ switch (command) {
   case 'start': {
     const filesArg = process.argv.indexOf('--files');
     const taskArg = process.argv.indexOf('--task');
-    
+
     if (filesArg === -1 || taskArg === -1) {
       console.error('Usage: node claude-update.js start --files "file1.ts,file2.ts" --task "description"');
       process.exit(1);
     }
-    
+
     const files = process.argv[filesArg + 1].split(',').map(f => f.trim());
     const task = process.argv[taskArg + 1];
-    
+
     if (!updater.start(files, task)) {
       process.exit(1);
     }
     break;
   }
-  
+
   case 'complete':
     updater.complete();
     break;
-    
+
   case 'check':
     updater.check();
     break;
-    
+
   case 'heartbeat':
     updater.heartbeat();
     break;
-    
+
   default:
     console.log(`
 ${AGENT_NAME} State Manager

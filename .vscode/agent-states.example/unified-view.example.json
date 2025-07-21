@@ -1,0 +1,36 @@
+{
+  "lastUpdated": "2025-01-01T00:00:00.000Z",
+  "agents": {
+    "claudeCode": {
+      "agent": "claudeCode",
+      "status": "idle",
+      "currentWork": null,
+      "lastHeartbeat": "2025-01-01T00:00:00.000Z"
+    },
+    "copilot": {
+      "agent": "copilot",
+      "status": "idle",
+      "currentWork": null,
+      "lastHeartbeat": "2025-01-01T00:00:00.000Z"
+    },
+    "cursor": {
+      "agent": "cursor",
+      "status": "active",
+      "currentWork": {
+        "files": ["example-component.tsx"],
+        "task": "Building UI component",
+        "started": "2025-01-01T00:00:00.000Z"
+      },
+      "lastHeartbeat": "2025-01-01T00:00:00.000Z"
+    }
+  },
+  "fileOwnership": {
+    "example-component.tsx": {
+      "agent": "cursor",
+      "since": "2025-01-01T00:00:00.000Z",
+      "task": "Building UI component"
+    }
+  },
+  "conflicts": [],
+  "staleAgents": []
+}
