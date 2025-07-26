@@ -21,7 +21,7 @@
 ### From Source
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/multi-agent-orchestration-extension
+git clone https://github.com/jdbridgeman/multi-agent-orchestration-extension
 cd multi-agent-orchestration-extension
 
 # Install dependencies
